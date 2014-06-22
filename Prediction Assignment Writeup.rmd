@@ -1,0 +1,53 @@
+Practical Machine Learning
+========================================================
+## Prediction Assignment Writeup
+### Introduction
+The goal of this project is to predict human activity based on wearable accelerometers' data. The data for this project come from this source: [http://groupware.les.inf.puc-rio.br/har].
+
+### Data cleaning
+We will focus on prediction test data, therefore  we find all fields in the test dataset, that contains no data or data that cannot be used (like row number) and remove those fields from train dataset. This report created only for code demonstration therefore we used only part of train data (not all dataset). 
+```{r}
+# load data
+t <- read.csv("..//pml-testing.csv", na.strings=c("NA","")) # test dataset
+d <- read.csv("..//pml-training.csv", na.strings=c("NA","")) # train dataset
+sprintf("Number of variables in train dataset: %i", ncol(d)-1)
+# sample train dataset to reduce calculation time
+d.sample <- sample(nrow(d), 300)
+d <- d[d.sample, ]
+# Find fields in test dataset that have no data 
+t.NA <- apply(t, 2, function(x) {sum(is.na(x))})
+t.NA <- which(t.NA < nrow(t))
+# Remove fields that have no data from test and train dataset
+t <- t[, t.NA]
+d <- d[,  t.NA]
+t <- t[, -1]
+d <- d[,  -1]
+sprintf("Number of selected predictors: %i", ncol(d)-1)
+```
+### Preprocess data
+We used PCA to reduce number of predictors. PCA required all predictors to be numeric type, therefore non-numeric variables was converted to a numeric type first.   
+```{r}
+library(caret)
+# Convert non-numeric variable
+for (i in c(1,4,5)) {
+  d[,  i] <- as.numeric(d[,  i]) 
+  t[,  i] <- as.numeric(t[,  i])
+}
+d.preProc <- preProcess(d[, -59], method="pca", thresh=.9)
+training <- predict(d.preProc, d[, -59])
+testing <- predict(d.preProc, t[, -59])
+d.preProc
+```
+### Training 
+The random forest method ('rf') selected for prediction. Train data splited to have data for cross-validation.
+```{r}
+inTrain <- createDataPartition(d[, 59], p = 3/4)[[1]]
+modelFit <- train(d[inTrain, 59] ~ ., data=training[inTrain, ], method='rf')
+modelFit
+```
+
+### Cross-validation
+Part of data that not used in train used for closs-validation.
+```{r}
+confusionMatrix(d[-inTrain, 59], predict(modelFit, training[-inTrain, ]))
+```
